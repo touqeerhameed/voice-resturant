@@ -3,14 +3,41 @@
 ## Overview
 Complete voice-powered restaurant ordering system with 3 separate projects deployed on Contavo VPS with Nginx.
 
-## Project Architecture
+## Project Architecture - API-DRIVEN DESIGN
 
 ```
-Voice Restaurant System
+Voice Restaurant System (100% API-Based)
 ├── Project 1: voice-restaurant-frontend (React)
-├── Project 2: voice-restaurant-mcp (MCP Server)
+├── Project 2: voice-restaurant-mcp (MCP Server) - NO DATABASE ACCESS
 ├── Project 3: restaurant-voice-erpnext (ERPNext Custom App)
 └── Deployment: Nginx + PM2 on Contavo VPS
+
+Data Flow:
+Frontend → MCP Server (API Proxy) → ERPNext APIs → Database (MariaDB on ERPNext)
+
+IMPORTANT: MCP Server has ZERO direct database connections!
+```
+
+## MCP Server Architecture - API PROXY ONLY
+
+### Core Principle
+The MCP Server acts as a **Smart API Proxy** that:
+- ✅ Receives requests from React frontend
+- ✅ Processes voice commands via Ultravox
+- ✅ Forwards ALL data operations to ERPNext APIs
+- ✅ Caches responses in Redis for performance
+- ✅ Manages WebSocket connections for real-time updates
+- ❌ **NEVER** connects directly to any database
+- ❌ **NO** database drivers (mysql, postgres, etc.)
+- ❌ **NO** ORM (Prisma, TypeORM, Sequelize)
+
+### What MCP Server Does:
+```typescript
+// CORRECT: API calls to ERPNext
+const response = await axios.post('https://navigo.qastco.com/api/resource/Sales%20Order', orderData);
+
+// WRONG: Direct database queries (DON'T DO THIS)
+// const order = await db.query('INSERT INTO tabSales Order...');
 ```
 
 ## Project 1: Voice Restaurant Frontend (React)
@@ -187,31 +214,25 @@ voice-restaurant-mcp/
 │   │   ├── menu.ts
 │   │   ├── auth.ts
 │   │   └── webhook.ts
-│   ├── models/
-│   │   ├── VoiceSession.ts
-│   │   ├── Order.ts
-│   │   ├── User.ts
-│   │   └── Menu.ts
+│   ├── types/
+│   │   ├── erpnext.ts      # ERPNext API response types
+│   │   ├── voice.ts        # Voice processing types
+│   │   ├── order.ts        # Order processing types
+│   │   └── ultravox.ts     # Ultravox SDK types
 │   ├── utils/
-│   │   ├── erpnextClient.ts
+│   │   ├── erpnextClient.ts # ERPNext API client (NO DATABASE)
 │   │   ├── logger.ts
 │   │   ├── validator.ts
-│   │   ├── cache.ts
+│   │   ├── cache.ts        # Redis cache only
 │   │   └── helpers.ts
 │   ├── websocket/
 │   │   ├── socketHandler.ts
 │   │   ├── voiceSocket.ts
 │   │   └── orderSocket.ts
 │   ├── config/
-│   │   ├── database.ts
-│   │   ├── redis.ts
-│   │   ├── ultravox.ts
-│   │   └── erpnext.ts
-│   ├── types/
-│   │   ├── voice.ts
-│   │   ├── order.ts
-│   │   ├── erpnext.ts
-│   │   └── ultravox.ts
+│   │   ├── redis.ts        # Redis for caching only
+│   │   ├── ultravox.ts     # Ultravox configuration
+│   │   └── erpnext.ts      # ERPNext API configuration (NO DATABASE)
 │   └── app.ts
 ├── tests/
 │   ├── unit/
@@ -227,33 +248,43 @@ voice-restaurant-mcp/
 └── ecosystem.config.js (PM2)
 ```
 
-### Key Features
-- **MCP Protocol Implementation**: AI orchestration
-- **Ultravox Integration**: Voice processing
-- **ERPNext API Integration**: Backend operations
-- **WebSocket Support**: Real-time updates
-- **Caching**: Redis for performance
-- **Authentication**: JWT tokens
-- **Rate Limiting**: API protection
-- **Webhook Handling**: Real-time notifications
+### Key Features - 100% API-DRIVEN (NO DATABASE ACCESS)
+- **MCP Protocol Implementation**: AI orchestration layer
+- **Ultravox Integration**: Voice processing and real-time communication
+- **ERPNext API Integration**: ALL data operations via navigo.qastco.com APIs
+- **WebSocket Support**: Real-time updates for voice sessions
+- **Redis Caching**: ONLY for temporary session data and API response caching
+- **API Proxy Layer**: Routes all requests to ERPNext APIs
+- **Authentication**: Proxies auth through ERPNext + session management
+- **Rate Limiting**: API protection and throttling
+- **Webhook Handling**: ERPNext webhook processing
 
-### Dependencies
+### Data Flow Architecture
+```
+React Frontend → MCP Server → ERPNext APIs (navigo.qastco.com) → MariaDB
+     ↑                ↓
+     └── WebSocket ←──┘
+
+NO DIRECT DATABASE ACCESS IN MCP SERVER
+ALL DATA OPERATIONS VIA ERPNEXT REST APIS
+```
+
+### Dependencies (API-Focused)
 ```json
 {
   "dependencies": {
     "express": "^4.18.2",
     "socket.io": "^4.7.2",
-    "axios": "^1.5.1",
-    "jsonwebtoken": "^9.0.2",
-    "bcryptjs": "^2.4.3",
-    "redis": "^4.6.8",
-    "joi": "^17.10.2",
+    "axios": "^1.5.1",           // For ERPNext API calls
+    "jsonwebtoken": "^9.0.2",    // Session management only
+    "redis": "^4.6.8",           // Cache layer only (NO persistence)
+    "joi": "^17.10.2",           // Request validation
     "cors": "^2.8.5",
     "helmet": "^7.0.0",
     "express-rate-limit": "^6.10.0",
-    "winston": "^3.10.0",
-    "ultravox-sdk": "latest",
-    "node-cron": "^3.0.2",
+    "winston": "^3.10.0",        // Logging
+    "ultravox-sdk": "latest",    // Voice processing
+    "node-cron": "^3.0.2",       // Cache cleanup tasks
     "typescript": "^4.9.5",
     "@types/node": "^18.17.15"
   }
@@ -1051,23 +1082,44 @@ pm2 save
 ```env
 REACT_APP_API_URL=https://yourdomain.com/api
 REACT_APP_WS_URL=wss://yourdomain.com/ws
-REACT_APP_ERPNEXT_URL=https://yourdomain.com/erpnext
 REACT_APP_ULTRAVOX_PUBLIC_KEY=pk_your_ultravox_key
 REACT_APP_STRIPE_PUBLIC_KEY=pk_test_your_stripe_key
 ```
 
-### MCP Server (.env)
+### MCP Server (.env) - API-ONLY CONFIGURATION
 ```env
 NODE_ENV=production
 PORT=3001
+
+# ERPNext API Configuration (NO DATABASE ACCESS)
 ERPNEXT_BASE_URL=https://navigo.qastco.com
 ERPNEXT_API_KEY=your_api_key
 ERPNEXT_API_SECRET=your_api_secret
+ERPNEXT_USERNAME=your_username  # Alternative auth method
+ERPNEXT_PASSWORD=your_password  # Alternative auth method
+
+# Voice AI
 ULTRAVOX_API_KEY=your_ultravox_key
 ULTRAVOX_APP_ID=your_app_id
+ULTRAVOX_WEBHOOK_SECRET=your_webhook_secret
+
+# Session & Cache (NO PERSISTENT DATABASE)
 JWT_SECRET=your_jwt_secret_key
-REDIS_URL=redis://localhost:6379
+REDIS_URL=redis://localhost:6379  # ONLY for caching & sessions
+
+# Server Configuration
 CORS_ORIGIN=https://yourdomain.com
+API_RATE_LIMIT=100  # requests per minute
+SESSION_EXPIRE=24h
+CACHE_TTL=300      # 5 minutes cache for API responses
+
+# Logging
+LOG_LEVEL=info
+LOG_FILE=/var/log/voice-restaurant-mcp.log
+
+# NO DATABASE VARIABLES NEEDED
+# NO DATABASE_URL
+# NO DB_HOST, DB_USER, DB_PASSWORD, etc.
 ```
 
 ## User Experience Features
