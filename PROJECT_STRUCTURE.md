@@ -444,6 +444,31 @@ restaurant_voice/
 }
 ```
 
+#### 5. COD Settings (Custom Doctype)
+```json
+{
+  "doctype": "COD Settings",
+  "module": "Restaurant Voice",
+  "is_single": 1,
+  "fields": [
+    {"fieldname": "enabled", "fieldtype": "Check", "default": 1, "label": "Enable Cash on Delivery"},
+    {"fieldname": "min_order_amount", "fieldtype": "Currency", "default": 0, "label": "Minimum Order Amount"},
+    {"fieldname": "max_order_amount", "fieldtype": "Currency", "default": 500, "label": "Maximum Order Amount"},
+    {"fieldname": "service_charge", "fieldtype": "Currency", "default": 2.00, "label": "COD Service Charge"},
+    {"fieldname": "service_areas", "fieldtype": "Small Text", "label": "Service Areas (comma separated)"},
+    {"fieldname": "delivery_instructions", "fieldtype": "Text", "label": "Default Delivery Instructions"},
+    {"fieldname": "auto_disable_threshold", "fieldtype": "Int", "default": 10, "label": "Auto Disable After Failed Attempts"},
+    {"fieldname": "working_hours_only", "fieldtype": "Check", "default": 1, "label": "COD During Working Hours Only"},
+    {"fieldname": "cash_limit_per_driver", "fieldtype": "Currency", "default": 1000, "label": "Cash Limit Per Driver"},
+    {"fieldname": "require_phone_verification", "fieldtype": "Check", "default": 1, "label": "Require Phone Verification for COD"}
+  ],
+  "permissions": [
+    {"role": "Restaurant Manager", "read": 1, "write": 1},
+    {"role": "System Manager", "read": 1, "write": 1}
+  ]
+}
+```
+
 ### Custom Fields for Existing Doctypes
 
 #### Item (Menu Items)
@@ -561,6 +586,37 @@ custom_fields = {
             "fieldname": "guest_name",
             "label": "Guest Name",
             "fieldtype": "Data"
+        },
+        {
+            "fieldname": "payment_method",
+            "label": "Payment Method",
+            "fieldtype": "Select",
+            "options": "\nCard\nCash\nCash on Delivery\nOnline Payment"
+        },
+        {
+            "fieldname": "cod_amount",
+            "label": "COD Amount",
+            "fieldtype": "Currency",
+            "depends_on": "eval:doc.payment_method=='Cash on Delivery'"
+        },
+        {
+            "fieldname": "cod_change_for",
+            "label": "Customer Paying Amount",
+            "fieldtype": "Currency",
+            "depends_on": "eval:doc.payment_method=='Cash on Delivery'"
+        },
+        {
+            "fieldname": "cod_change_required",
+            "label": "Change Required",
+            "fieldtype": "Currency",
+            "read_only": 1,
+            "depends_on": "eval:doc.payment_method=='Cash on Delivery'"
+        },
+        {
+            "fieldname": "delivery_instructions",
+            "label": "Delivery Instructions",
+            "fieldtype": "Text",
+            "depends_on": "eval:doc.payment_method=='Cash on Delivery'"
         }
     ]
 }
@@ -836,13 +892,14 @@ GET /api/method/restaurant_voice.api.order_api.get_order_history?customer=CUST-0
 
 #### ERPNext Payment APIs
 ```python
-# Create payment entry
+# Create payment entry (supports COD)
 POST /api/resource/Payment%20Entry
 {
     "payment_type": "Receive",
     "party_type": "Customer",
     "party": "WALK-IN-001",
     "paid_amount": 25.98,
+    "mode_of_payment": "Cash on Delivery", // Card, Cash, COD, Online
     "references": [
         {
             "reference_doctype": "Sales Order",
@@ -852,27 +909,66 @@ POST /api/resource/Payment%20Entry
     ]
 }
 
-# Process card payment
+# Process payment with COD support
 POST /api/method/restaurant_voice.api.payment_api.process_payment
 {
     "order_id": "SO-2024-001",
-    "payment_method": "card",
+    "payment_method": "cod", // card, cash, cod, online
     "amount": 25.98,
-    "payment_details": {}
+    "cod_enabled": true,
+    "payment_details": {
+        "delivery_address": "123 Office St, Suite 402",
+        "cod_change_for": 30.00 // Customer has $30, needs $4.02 change
+    }
+}
+
+# COD Configuration Management
+GET /api/method/restaurant_voice.api.payment_api.get_cod_settings
+PUT /api/method/restaurant_voice.api.payment_api.update_cod_settings
+{
+    "cod_enabled": true,
+    "cod_min_amount": 0,
+    "cod_max_amount": 500,
+    "cod_service_charge": 2.00, // Optional delivery charge for COD
+    "cod_areas": ["downtown", "office_district"] // Specific delivery areas
 }
 ```
 
 #### MCP Server Payment APIs
 ```javascript
-// POST /api/payment/process
+// POST /api/payment/process (with COD support)
 {
     "orderId": "SO-2024-001",
-    "paymentMethod": "card",
+    "paymentMethod": "cod", // card, cash, cod, online
     "amount": 25.98,
-    "paymentToken": "stripe_token"
+    "paymentToken": "stripe_token", // Not needed for COD
+    "codDetails": {
+        "changeFor": 30.00,
+        "deliveryAddress": "123 Office St, Suite 402",
+        "deliveryInstructions": "Ring bell, Suite 402"
+    }
 }
 
-// GET /api/payment/methods
+// GET /api/payment/methods (includes COD if enabled)
+{
+    "availableMethods": [
+        {"type": "card", "name": "Credit/Debit Card", "enabled": true},
+        {"type": "cash", "name": "Cash", "enabled": true},
+        {"type": "cod", "name": "Cash on Delivery", "enabled": true, "maxAmount": 500},
+        {"type": "online", "name": "Online Payment", "enabled": true}
+    ]
+}
+
+// GET /api/payment/cod-settings
+// PUT /api/payment/cod-settings
+{
+    "enabled": true,
+    "minAmount": 0,
+    "maxAmount": 500,
+    "serviceCharge": 2.00,
+    "availableAreas": ["downtown", "office_district"]
+}
+
 // POST /api/payment/refund
 ```
 
@@ -1225,8 +1321,11 @@ const orderTypes = {
   "delivery": {
     requiresAddress: true,
     estimatedTime: "30-45 mins",
-    paymentTiming: "before_delivery",
-    preparationType: "fresh_cooking"
+    paymentTiming: "before_delivery_or_cod", // Cash on Delivery option
+    preparationType: "fresh_cooking",
+    codAvailable: true, // Can be toggled on/off
+    codMinAmount: 0,    // Minimum order for COD
+    codMaxAmount: 500   // Maximum order for COD
   },
   "pickup": {
     requiresPickupTime: true,
@@ -1299,6 +1398,25 @@ System: "Perfect! I'll prepare a variety pack. Delivery address?"
 ```
 Customer: "Large pizza, half pepperoni half mushroom, thin crust, extra sauce on pepperoni side only"
 System: "Large thin crust pizza: half pepperoni with extra sauce, half mushroom. Anything else?"
+```
+
+### 5. **Cash on Delivery Ordering**
+```
+Customer: "I want to order 3 burgers for delivery, I'll pay cash"
+System: "3 burgers for delivery with cash payment. That's $24.97. What's your delivery address?"
+Customer: "123 Office Street, Suite 402"
+System: "Delivery to 123 Office Street, Suite 402. Will you have exact change or do you need change?"
+Customer: "I have a $30 bill"
+System: "Perfect! Your change will be $5.03. Order confirmed for cash on delivery in 35 minutes."
+```
+
+### 6. **COD Management & Control**
+```
+Admin Voice Command: "Disable cash on delivery"
+System: "Cash on delivery has been disabled for all new orders. Existing COD orders remain active."
+
+Admin Voice Command: "Set COD limit to $300"
+System: "COD maximum order amount updated to $300. This applies to new orders only."
 ```
 
 This comprehensive structure now covers everything from quick office lunch orders to complex catering scenarios, all accessible via voice commands on any device - mobile, desktop, or IoT integration!
