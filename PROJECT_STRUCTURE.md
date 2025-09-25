@@ -1151,4 +1151,154 @@ LOG_FILE=/var/log/voice-restaurant-mcp.log
 9. **Payment Gateway**: Multiple payment methods
 10. **Customer Support**: Voice-enabled help system
 
-This complete structure provides a robust, scalable voice restaurant system with comprehensive user management, seamless guest experience, and full integration with your existing ERPNext infrastructure.
+## Use Cases & Scenarios Covered
+
+### 1. **Dine-In Restaurant Ordering**
+- Customer sits at table, uses QR code to access voice ordering
+- Voice commands: "I want a large pepperoni pizza and two Cokes"
+- Table-side service with real-time kitchen notifications
+
+### 2. **Office/Workplace Ordering**
+- Employee opens website on mobile/desktop during lunch break
+- Voice ordering: "Order 5 chicken sandwiches for pickup at 1 PM"
+- Group ordering with individual payment splitting
+- Scheduled/advance ordering for team meetings
+
+### 3. **Mobile Delivery Ordering**
+- Customer at home/office orders via mobile browser
+- Voice navigation: "Show me vegetarian options under $15"
+- Address-based delivery with GPS tracking
+- Contactless delivery preferences
+
+### 4. **Takeaway/Pickup Ordering**
+- Quick voice ordering while driving: "I'll take my usual order"
+- Hands-free ordering for accessibility
+- Pickup time estimation and notifications
+- Curbside pickup coordination
+
+### 5. **Drive-Through Integration**
+- Voice ordering at drive-through kiosk
+- Car-based ordering via mobile hotspot
+- Quick recognition of returning customers
+- Menu recommendations based on time of day
+
+### 6. **Catering & Bulk Orders**
+- Office managers ordering for events/meetings
+- Voice commands: "I need lunch for 20 people, mix of vegetarian and meat"
+- Advanced scheduling and preparation time management
+- Invoice generation for corporate accounts
+
+### 7. **Accessibility & Special Needs**
+- Visually impaired customers using voice navigation
+- Elderly customers preferring voice over touch interfaces
+- Multilingual support for diverse communities
+- Simplified ordering for cognitive accessibility
+
+### 8. **Multi-Location Chain Support**
+- Customer voice ordering from different restaurant locations
+- Location-based menu variations and pricing
+- Loyalty points across multiple locations
+- Franchise-specific customizations
+
+### 9. **Integration Scenarios**
+- **Smart Speakers**: "Alexa, order from [Restaurant Name]"
+- **Car Integration**: Voice ordering via Android Auto/CarPlay
+- **Wearable Devices**: Smart watch voice commands
+- **IoT Integration**: Smart home voice assistants
+
+### 10. **Business Intelligence Use Cases**
+- Voice pattern analysis for menu optimization
+- Popular item tracking via voice commands
+- Customer preference learning from voice interactions
+- Peak time identification through voice ordering data
+
+## Supported Order Types
+
+```javascript
+// Order type configuration in ERPNext
+const orderTypes = {
+  "dine_in": {
+    requiresTable: true,
+    paymentTiming: "before_or_after",
+    preparationType: "fresh_cooking"
+  },
+  "delivery": {
+    requiresAddress: true,
+    estimatedTime: "30-45 mins",
+    paymentTiming: "before_delivery",
+    preparationType: "fresh_cooking"
+  },
+  "pickup": {
+    requiresPickupTime: true,
+    paymentTiming: "at_pickup",
+    preparationType: "ready_to_go"
+  },
+  "catering": {
+    requiresAdvanceOrder: true,
+    minimumQuantity: 10,
+    paymentTiming: "advance_payment",
+    preparationType: "bulk_preparation"
+  }
+}
+```
+
+## Location-Based Features
+
+### GPS Integration
+- **Auto-location Detection**: Determines nearest restaurant location
+- **Delivery Radius**: Automatic delivery availability checking
+- **Location-based Pricing**: Different pricing for different areas
+- **Traffic-aware Delivery**: Dynamic delivery time estimation
+
+### Multi-Restaurant Support
+```javascript
+// Restaurant location handling
+const restaurantLocations = {
+  "downtown": {
+    address: "123 Main St, Downtown",
+    serviceTypes: ["dine_in", "pickup", "delivery"],
+    deliveryRadius: 5, // miles
+    operatingHours: "9AM-11PM"
+  },
+  "suburb": {
+    address: "456 Oak Ave, Suburbs",
+    serviceTypes: ["dine_in", "pickup", "delivery"],
+    deliveryRadius: 3,
+    operatingHours: "10AM-10PM"
+  }
+}
+```
+
+## Advanced Voice Use Cases
+
+### 1. **Contextual Ordering**
+```
+Customer: "I want my usual"
+System: "Your usual large pepperoni pizza with extra cheese, estimated 25 minutes?"
+Customer: "Yes, but make it two pizzas this time"
+System: "Perfect! Two large pepperoni pizzas with extra cheese. Total $29.98"
+```
+
+### 2. **Dietary Restrictions & Preferences**
+```
+Customer: "I'm vegan and gluten-free, what do you recommend?"
+System: "We have a great quinoa salad and our vegan pizza with gluten-free crust"
+Customer: "I'll take the pizza"
+System: "Vegan pizza on gluten-free crust, any additional toppings?"
+```
+
+### 3. **Group Ordering Management**
+```
+Customer: "I'm ordering for my office, we need 10 lunches"
+System: "Great! Would you like our office combo deals or individual selections?"
+Customer: "Mix it up - 5 chicken, 3 vegetarian, 2 vegan"
+System: "Perfect! I'll prepare a variety pack. Delivery address?"
+```
+
+### 4. **Complex Modifications**
+```
+Customer: "Large pizza, half pepperoni half mushroom, thin crust, extra sauce on pepperoni side only"
+System: "Large thin crust pizza: half pepperoni with extra sauce, half mushroom. Anything else?"
+```
+
+This comprehensive structure now covers everything from quick office lunch orders to complex catering scenarios, all accessible via voice commands on any device - mobile, desktop, or IoT integration!
